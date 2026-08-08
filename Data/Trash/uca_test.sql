@@ -1,0 +1,1 @@
+﻿INSERT INTO FaceAttendanceSystem.dbo.UserCompanyAssignments (Id,UserId,CompanyId,IsActive,CreatedAt,UpdatedAt,CreatedBy,UpdatedBy) VALUES      (NEWID(), N'00000000-0000-0000-0000-000000000000', N'6FB8C349-2032-490A-9B96-9A0B7D6CC4FB', 1, GETDATE(), NULL, NULL, NULL)

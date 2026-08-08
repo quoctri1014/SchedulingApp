@@ -1,0 +1,12 @@
+{
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning"
+    }
+  },
+  "ConnectionStrings": {
+    "DefaultConnection": "Server=.\\SQLEXPRESS;Database=SchedulingAppDb;Trusted_Connection=True;TrustServerCertificate=True;",
+    "FaceAttendanceConnection": "Server=.\\SQLEXPRESS;Database=FaceAttendanceSystem;Trusted_Connection=True;TrustServerCertificate=True;"
+  }
+}

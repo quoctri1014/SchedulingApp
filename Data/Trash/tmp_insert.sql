@@ -1,0 +1,1 @@
+﻿INSERT INTO FaceAttendanceSystem.dbo.UserDepartmentAssignments (Id,UserId,DepartmentId,IsActive,CreatedAt,UpdatedAt,CreatedBy,UpdatedBy) VALUES      (N'07410101-0001-0000-0000-000000000001',N'8388243C-45B3-403D-93B9-F52E85951307',NULL,N'BGD-TNL',N'Ban Giám đốc Trung Nam',1,0,1,GETDATE(),NULL,NULL,NULL,NULL)

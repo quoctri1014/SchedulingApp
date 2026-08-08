@@ -1,0 +1,28 @@
+# Root .gitignore — SchedulingApp
+
+# ─── .NET ────────────────────────────────────────────────────────────────────
+bin/
+obj/
+*.user
+*.suo
+.vs/
+*.DotSettings
+TestResults/
+
+# ─── Secrets & Environment ───────────────────────────────────────────────────
+**/appsettings.Development.json
+!**/appsettings.Development.json.example
+.env
+!.env.example
+
+# ─── Frontend ────────────────────────────────────────────────────────────────
+node_modules/
+dist/
+.vite/
+
+# ─── OS Files ────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ─── Logs ────────────────────────────────────────────────────────────────────
+*.log

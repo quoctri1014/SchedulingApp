@@ -1,0 +1,50 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --color-primary-50: #eff6ff;
+  --color-primary-100: #dbeafe;
+  --color-primary-500: #3b82f6;
+  --color-primary-600: #2563eb;
+  --color-primary-900: #1e3a8a;
+}
+
+@layer base {
+  body {
+    @apply font-sans bg-slate-50/50 text-slate-800 antialiased selection:bg-blue-100 selection:text-blue-900;
+  }
+}
+
+@layer utilities {
+  .glass {
+    @apply bg-white border border-slate-200 shadow-sm rounded-xl;
+  }
+  .glass-card {
+    @apply bg-white border border-slate-200 shadow-sm rounded-xl hover:shadow-md transition-shadow duration-200;
+  }
+  .text-gradient {
+    @apply text-slate-900;
+  }
+  .bg-gradient-primary {
+    @apply bg-blue-600;
+  }
+  .animate-fade-in-up {
+    animation: fadeInUp 0.4s ease-out forwards;
+  }
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+}
