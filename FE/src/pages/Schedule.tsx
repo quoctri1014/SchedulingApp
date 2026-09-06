@@ -49,6 +49,8 @@ export default function Schedule() {
   const [elapsedMs, setElapsedMs] = useState(0);
   const [result, setResult] = useState<ScheduleResult | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [shiftIds, setShiftIds] = useState<number[]>([]);
+  const [employeeIds, setEmployeeIds] = useState<string[]>([]);
 
   const timerRef = useRef<any>(null);
 
@@ -68,7 +70,24 @@ export default function Schedule() {
   };
 
   useEffect(() => {
-    return () => stopTimer();
+    let active = true;
+
+    Promise.all([api.getShifts(), api.getEmployees()])
+      .then(([shifts, employees]) => {
+        if (!active) return;
+        setShiftIds(shifts.map((shift) => Number(shift.id)));
+        setEmployeeIds(employees.map((employee) => String(employee.id)));
+      })
+      .catch((error: any) => {
+        if (active) {
+          setErrorMsg(error.response?.data?.errors?.[0] || error.message || 'Không tải được dữ liệu xếp lịch.');
+        }
+      });
+
+    return () => {
+      active = false;
+      stopTimer();
+    };
   }, []);
 
   const runSchedule = async () => {
@@ -80,14 +99,8 @@ export default function Schedule() {
     try {
       const res = await api.runSchedule(
         {
-          companies: [],
-          departments: [],
-          positions: [],
-          employees: [],
-          employeeAssignments: [],
-          shifts: [],
-          shiftIds: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
-          employeeIds: ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15"],
+          shiftIds,
+          employeeIds,
           fromDate: new Date().toISOString(),
           toDate: new Date().toISOString(),
           options: {},

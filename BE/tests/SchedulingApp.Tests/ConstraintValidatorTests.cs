@@ -1,62 +1,114 @@
 namespace SchedulingApp.Tests;
 
+using SchedulingApp.Application.DTOs;
+using SchedulingApp.Application.Solver;
+
 /// <summary>
 /// Tests cho IConstraintValidator.
 /// TODO: Mỗi test method dưới đây cần được implement khi có ConstraintValidator thật.
 /// </summary>
 public class ConstraintValidatorTests
 {
-    [Fact(Skip = "TODO: cài đặt logic thật cho IConstraintValidator")]
+    [Fact]
     public void Validate_OverlappingShifts_ReturnsInvalid()
     {
-        // Kiểm tra: nhân viên đã được phân công ca A, không được phân công ca B trùng giờ
+        var request = ValidRequest();
+        request.ExistingShifts.Add(new ScheduledShiftDto { EmployeeId = "employee-1", Start = request.ShiftStart.AddHours(-1), End = request.ShiftStart.AddHours(2) });
+        AssertInvalid(request, "trùng giờ");
     }
 
-    [Fact(Skip = "TODO: cài đặt logic thật cho IConstraintValidator")]
+    [Fact]
     public void Validate_OvernightShift_CalculatesRestCorrectly()
     {
-        // Kiểm tra: ca qua đêm (end <= start) phải được xử lý thêm 1 ngày khi tính thời gian nghỉ
+        var request = ValidRequest();
+        request.ShiftStart = new DateTime(2026, 9, 7, 14, 0, 0);
+        request.ShiftEnd = new DateTime(2026, 9, 7, 22, 0, 0);
+        request.ExistingShifts.Add(new ScheduledShiftDto { EmployeeId = "employee-1", Start = new DateTime(2026, 9, 6, 22, 0, 0), End = new DateTime(2026, 9, 6, 6, 0, 0) });
+        var result = new ConstraintValidator().Validate(request);
+        Assert.DoesNotContain(result.Errors, error => error.Contains("Thời gian nghỉ"));
     }
 
-    [Fact(Skip = "TODO: cài đặt logic thật cho IConstraintValidator")]
+    [Fact]
     public void Validate_RestTimeBelowMinimum_ReturnsInvalid()
     {
-        // Kiểm tra: thời gian nghỉ giữa 2 ca liên tiếp phải đạt tối thiểu (VD 8 giờ)
+        var request = ValidRequest();
+        request.ExistingShifts.Add(new ScheduledShiftDto { EmployeeId = "employee-1", Start = request.ShiftStart.AddHours(-4), End = request.ShiftStart.AddHours(-2) });
+        AssertInvalid(request, "Thời gian nghỉ");
     }
 
-    [Fact(Skip = "TODO: cài đặt logic thật cho IConstraintValidator")]
+    [Fact]
     public void Validate_ExpiredCertification_ReturnsInvalid()
     {
-        // Kiểm tra: chứng chỉ hành nghề của nhân viên đã hết hạn trước ngày ca làm
+        var request = ValidRequest();
+        request.PositionRequiresCertificate = true;
+        request.CertificateExpiryDate = request.ShiftStart.AddMinutes(-1);
+        AssertInvalid(request, "Chứng chỉ");
     }
 
-    [Fact(Skip = "TODO: cài đặt logic thật cho IConstraintValidator")]
+    [Fact]
     public void Validate_EmployeeOnLeave_ReturnsInvalid()
     {
-        // Kiểm tra: nhân viên đang trong kỳ nghỉ phép, không được xếp ca
+        var request = ValidRequest();
+        request.LeavePeriods.Add(new LeavePeriodDto { Start = request.ShiftStart.AddHours(-1), End = request.ShiftEnd.AddHours(1), IsApproved = true });
+        AssertInvalid(request, "nghỉ phép");
     }
 
-    [Fact(Skip = "TODO: cài đặt logic thật cho IConstraintValidator")]
+    [Fact]
     public void Validate_ExceedsMaxWeeklyHours_ReturnsInvalid()
     {
-        // Kiểm tra: tổng giờ làm trong tuần vượt MaxHoursPerWeek
+        var request = ValidRequest();
+        request.HoursAlreadyScheduledThisWeek = 40;
+        AssertInvalid(request, "giới hạn");
     }
 
-    [Fact(Skip = "TODO: cài đặt logic thật cho IConstraintValidator")]
+    [Fact]
     public void Validate_CrossDepartmentWithSkill_ReturnsValid()
     {
-        // Kiểm tra: nhân viên được điều động chéo phòng ban và có đủ chứng chỉ/kỹ năng → hợp lệ
+        var request = ValidRequest();
+        request.DepartmentId = "other-department";
+        request.Assignments[0].DepartmentId = "home-department";
+        request.Assignments[0].AllowCrossDepartment = true;
+        Assert.True(new ConstraintValidator().Validate(request).IsValid);
     }
 
-    [Fact(Skip = "TODO: cài đặt logic thật cho IConstraintValidator")]
+    [Fact]
     public void Validate_CrossDepartmentWithoutPermission_ReturnsInvalid()
     {
-        // Kiểm tra: nhân viên bị điều động chéo phòng ban mà không có quyền → không hợp lệ
+        var request = ValidRequest();
+        request.DepartmentId = "other-department";
+        AssertInvalid(request, "assignment");
     }
 
-    [Fact(Skip = "TODO: cài đặt logic thật cho IConstraintValidator")]
+    [Fact]
     public void Validate_CompanyPositionIsActive_ReturnsValid()
     {
-        // (HC8) Kiểm tra: ca làm việc thuộc vị trí hợp lệ và đang active tại công ty
+        Assert.True(new ConstraintValidator().Validate(ValidRequest()).IsValid);
+    }
+
+    private static AssignRequest ValidRequest() => new()
+    {
+        EmployeeId = "employee-1",
+        ShiftId = "shift-1",
+        CompanyId = "company-1",
+        DepartmentId = "department-1",
+        PositionId = "position-1",
+        ShiftStart = new DateTime(2026, 9, 7, 8, 0, 0),
+        ShiftEnd = new DateTime(2026, 9, 7, 16, 0, 0),
+        MaxHoursPerWeek = 40,
+        Assignments = new List<EmployeeAssignmentContextDto>
+        {
+            new() { CompanyId = "company-1", DepartmentId = "department-1", PositionId = "position-1", CertificateExpiryDate = new DateTime(2027, 1, 1) }
+        },
+        CompanyPositions = new List<CompanyPositionContextDto>
+        {
+            new() { CompanyId = "company-1", PositionId = "position-1", IsActive = true }
+        }
+    };
+
+    private static void AssertInvalid(AssignRequest request, string expectedMessagePart)
+    {
+        var result = new ConstraintValidator().Validate(request);
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, error => error.Contains(expectedMessagePart, StringComparison.OrdinalIgnoreCase));
     }
 }

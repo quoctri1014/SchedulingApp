@@ -1,10 +1,4 @@
 export interface SolverInput {
-  companies: any[];
-  departments: any[];
-  positions: any[];
-  employees: any[];
-  employeeAssignments: any[];
-  shifts: any[];
   shiftIds: number[];
   employeeIds: string[];
   fromDate: string;

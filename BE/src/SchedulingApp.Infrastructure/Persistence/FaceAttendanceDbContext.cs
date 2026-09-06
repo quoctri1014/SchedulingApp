@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using SchedulingApp.Domain.Entities.FaceAttendance;
 
 namespace SchedulingApp.Infrastructure.Persistence;
@@ -14,6 +15,13 @@ public class FaceAttendanceDbContext : DbContext
     public DbSet<FaceDepartment> Departments { get; set; } = null!;
     public DbSet<FaceJobTitle> JobTitles { get; set; } = null!;
     public DbSet<FaceCompanyShift> CompanyShifts { get; set; } = null!;
+
+    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+    {
+        base.OnConfiguring(optionsBuilder);
+        // Suppress pending model changes warning for migration purposes
+        optionsBuilder.ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning));
+    }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

@@ -1,5 +1,5 @@
 export interface Employee {
-  id: number;
+  id: string;
   fullName: string;
   email?: string;
   phoneNumber?: string;
@@ -8,12 +8,12 @@ export interface Employee {
 
 export interface EmployeeAssignment {
   id: number;
-  employeeId: number;
-  companyId: number;
+  employeeId: string;
+  companyId: string;
   companyName?: string;
-  departmentId: number;
+  departmentId: string;
   departmentName?: string;
-  positionId: number;
+  positionId: string;
   positionName?: string;
   certificateExpiryDate?: string;
   isPrimary: boolean;
@@ -24,15 +24,15 @@ export interface EmployeeAssignment {
 
 export interface EmployeeLeave {
   id: number;
-  employeeId: number;
-  startDate: string;
-  endDate: string;
-  reason: string;
+  employeeId: string;
+  startTime: string;
+  endTime: string;
+  isApproved: boolean;
 }
 
 export interface EmployeePreference {
   id: number;
-  employeeId: number;
+  employeeId: string;
   preferenceType: string;
   details: string;
 }

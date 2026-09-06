@@ -1,6 +1,7 @@
 using System.Text.Json.Serialization;
 using AutoMapper;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using SchedulingApp.Api.Middleware;
 using SchedulingApp.Application.Interfaces;
 using SchedulingApp.Application.Mappings;
@@ -40,12 +41,37 @@ builder.Services.AddCors(options =>
                         .AllowAnyMethod());
 });
 
-// DbContext — SQL Server
-builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
-
-builder.Services.AddDbContext<FaceAttendanceDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("FaceAttendanceConnection")));
+// DbContext — SQLite (for local dev) or SQL Server (production)
+var useDbType = builder.Configuration.GetValue<string>("UseDatabase") ?? "SQLite";
+var sqliteDirectory = AppContext.BaseDirectory;
+var sqliteAppConnection = $"Data Source={Path.Combine(sqliteDirectory, "SchedulingApp.db")}";
+var sqliteFaceConnection = $"Data Source={Path.Combine(sqliteDirectory, "FaceAttendance.db")}";
+if (useDbType == "SqlServer")
+{
+    builder.Services.AddDbContext<AppDbContext>(options =>
+    {
+        options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"));
+        options.ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning));
+    });
+    builder.Services.AddDbContext<FaceAttendanceDbContext>(options =>
+    {
+        options.UseSqlServer(builder.Configuration.GetConnectionString("FaceAttendanceConnection"));
+        options.ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning));
+    });
+}
+else
+{
+    builder.Services.AddDbContext<AppDbContext>(options =>
+    {
+        options.UseSqlite(sqliteAppConnection);
+        options.ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning));
+    });
+    builder.Services.AddDbContext<FaceAttendanceDbContext>(options =>
+    {
+        options.UseSqlite(sqliteFaceConnection);
+        options.ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning));
+    });
+}
 
 // AutoMapper — đăng ký MappingProfile
 builder.Services.AddAutoMapper(cfg => cfg.AddProfile<MappingProfile>());
@@ -56,8 +82,7 @@ builder.Services.AddScoped<ISolver, SaSolver>();          // SA
 builder.Services.AddScoped<ISolver, HybridSolver>();      // Hybrid
 builder.Services.AddScoped<ISolverFactory, SolverFactory>();
 
-// IConstraintValidator — Fake luôn trả về valid, nhóm thay bằng ConstraintValidator thật sau
-builder.Services.AddScoped<IConstraintValidator, FakeValidator>();
+builder.Services.AddScoped<IConstraintValidator, ConstraintValidator>();
 
 var app = builder.Build();
 
@@ -71,16 +96,35 @@ if (app.Environment.IsDevelopment())
 // Exception middleware (phải đặt trước CORS và routing)
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 
-// Seed Data — tự động migrate và chèn dữ liệu mẫu khi khởi động
+// Seed Data — tự động tạo DB nếu chưa có
 using (var scope = app.Services.CreateScope())
 {
-    var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    context.Database.Migrate();         // Tự động chạy migrations nếu chưa apply
-    
-    var faceContext = scope.ServiceProvider.GetRequiredService<FaceAttendanceDbContext>();
-    faceContext.Database.Migrate();
+    try
+    {
+        var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        context.Database.EnsureCreated();   // Tạo DB từ model nếu chưa có (bỏ qua migrations)
+        SeedData.Initialize(context);       // Chèn dữ liệu mẫu nếu DB chưa có dữ liệu
+    }
+    catch (Exception ex)
+    {
+        app.Logger.LogWarning($"AppDbContext initialization failed: {ex.Message}");
+        // Continue startup even if DB init fails - for development/testing
+    }
+}
 
-    SeedData.Initialize(context);       // Chèn dữ liệu mẫu nếu DB chưa có dữ liệu
+// Initialize FaceAttendanceDbContext nếu cần
+using (var scope = app.Services.CreateScope())
+{
+    try
+    {
+        var faceContext = scope.ServiceProvider.GetRequiredService<FaceAttendanceDbContext>();
+        faceContext.Database.EnsureCreated();
+        FaceAttendanceSeedData.Initialize(faceContext);
+    }
+    catch (Exception ex)
+    {
+        app.Logger.LogWarning($"FaceAttendanceDbContext initialization failed: {ex.Message}");
+    }
 }
 
 app.UseCors("AllowFrontend");

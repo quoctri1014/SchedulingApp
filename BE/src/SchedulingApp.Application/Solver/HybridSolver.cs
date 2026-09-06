@@ -20,8 +20,6 @@ public class HybridSolver : ISolver
 
     public ScheduleResultDto Run(SolverInput input)
     {
-        throw new NotImplementedException("Thuật toán Lai (Hybrid) hiện tại chưa được triển khai. Vui lòng code thuật toán vào file HybridSolver.cs!");
-
         _logger.LogInformation("Bắt đầu chạy thuật toán Hybrid (GA + SA)...");
         var sw = Stopwatch.StartNew();
 

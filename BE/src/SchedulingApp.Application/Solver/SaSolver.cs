@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using SchedulingApp.Application.DTOs;
 using SchedulingApp.Application.Interfaces;
@@ -20,14 +21,12 @@ public class SaSolver : ISolver
 
     public ScheduleResultDto Run(SolverInput input)
     {
-        throw new NotImplementedException("Thuật toán SA (Luyện kim) hiện tại chưa được triển khai. Vui lòng code thuật toán vào file SaSolver.cs!");
-
         _logger.LogInformation("Bắt đầu chạy thuật toán SA...");
         var sw = Stopwatch.StartNew();
 
-        double initTemp = input.Options.TryGetValue("initialTemperature", out var t) ? Convert.ToDouble(t) : 1000.0;
-        double coolingRate = input.Options.TryGetValue("coolingRate", out var c) ? Convert.ToDouble(c) : 0.95;
-        int maxIter = input.Options.TryGetValue("maxIterations", out var i) ? Convert.ToInt32(i) : 1000;
+        double initTemp = GetDoubleOption(input.Options, "initialTemperature", 1000.0);
+        double coolingRate = GetDoubleOption(input.Options, "coolingRate", 0.95);
+        int maxIter = GetIntOption(input.Options, "maxIterations", 1000);
 
         var targetShifts = input.Shifts
             .OrderBy(s => s.StartDate)
@@ -109,6 +108,28 @@ public class SaSolver : ISolver
         result.SoftViolationsCount = penaltyBreakdown.Count;
 
         return result;
+    }
+
+    private static double GetDoubleOption(Dictionary<string, object> options, string key, double fallback)
+    {
+        if (!options.TryGetValue(key, out var value))
+            return fallback;
+
+        if (value is JsonElement element && element.ValueKind == JsonValueKind.Number && element.TryGetDouble(out var number))
+            return number;
+
+        return double.TryParse(value?.ToString(), out var parsed) ? parsed : fallback;
+    }
+
+    private static int GetIntOption(Dictionary<string, object> options, string key, int fallback)
+    {
+        if (!options.TryGetValue(key, out var value))
+            return fallback;
+
+        if (value is JsonElement element && element.ValueKind == JsonValueKind.Number && element.TryGetInt32(out var number))
+            return number;
+
+        return int.TryParse(value?.ToString(), out var parsed) ? parsed : fallback;
     }
 
     private List<List<string>> InitializeSolution(List<Shift> shifts, List<Employee> employees)

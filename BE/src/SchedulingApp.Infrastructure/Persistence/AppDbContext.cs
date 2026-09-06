@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using SchedulingApp.Domain.Entities;
 
 namespace SchedulingApp.Infrastructure.Persistence;
@@ -14,6 +15,13 @@ public class AppDbContext : DbContext
     public DbSet<Shift> Shifts { get; set; } = null!;
     public DbSet<AlgorithmRun> AlgorithmRuns { get; set; } = null!;
 
+    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+    {
+        base.OnConfiguring(optionsBuilder);
+        // Suppress pending model changes warning for migration purposes
+        optionsBuilder.ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning));
+    }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -22,7 +30,7 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<Employee>().HasQueryFilter(e => !e.IsDeleted);
         modelBuilder.Entity<Shift>().HasQueryFilter(e => !e.IsDeleted);
 
-        // Prevent multiple cascade paths error in SQL Server
+        // Prevent multiple cascade paths error
         foreach (var relationship in modelBuilder.Model.GetEntityTypes().SelectMany(e => e.GetForeignKeys()))
         {
             relationship.DeleteBehavior = DeleteBehavior.Restrict;

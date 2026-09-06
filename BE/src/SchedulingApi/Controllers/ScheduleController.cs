@@ -14,14 +14,28 @@ namespace SchedulingApp.Api.Controllers;
 public class ScheduleController : ControllerBase
 {
     private readonly ISolverFactory _solverFactory;
+    private readonly IConstraintValidator _constraintValidator;
     private readonly AppDbContext _context;
     private readonly ILogger<ScheduleController> _logger;
 
-    public ScheduleController(ISolverFactory solverFactory, AppDbContext context, ILogger<ScheduleController> logger)
+    public ScheduleController(ISolverFactory solverFactory, IConstraintValidator constraintValidator, AppDbContext context, ILogger<ScheduleController> logger)
     {
         _solverFactory = solverFactory;
+        _constraintValidator = constraintValidator;
         _context = context;
         _logger = logger;
+    }
+
+    [HttpPost("validate")]
+    public ActionResult<ApiResponse<ValidationResult>> Validate([FromBody] AssignRequest request)
+    {
+        var result = _constraintValidator.Validate(request);
+        return Ok(new ApiResponse<ValidationResult>
+        {
+            Success = result.IsValid,
+            Data = result,
+            Errors = result.Errors
+        });
     }
 
     [HttpPost("run")]
@@ -34,6 +48,23 @@ public class ScheduleController : ControllerBase
 
         var startedAt = DateTime.Now;
         var solver = _solverFactory.Resolve(algorithm);
+
+        if (input.ShiftIds.Count == 0)
+        {
+            input.ShiftIds = await _context.Shifts
+                .Where(s => !s.IsDeleted)
+                .OrderBy(s => s.StartDate)
+                .Select(s => s.Id)
+                .ToListAsync();
+        }
+
+        if (input.EmployeeIds.Count == 0)
+        {
+            input.EmployeeIds = await _context.Employees
+                .Where(e => !e.IsDeleted)
+                .Select(e => e.Id)
+                .ToListAsync();
+        }
 
         // Fetch real shifts and employees from DB and pass to solver
         input.Shifts = await _context.Shifts
@@ -97,11 +128,26 @@ public class ScheduleController : ControllerBase
 
         var input = inputDto?.SolverInput ?? new SolverInput
         {
-            ShiftIds = new List<int> { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 },
-            EmployeeIds = new List<string> { "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15" },
             FromDate = DateTime.Now,
             ToDate = DateTime.Now
         };
+
+        if (input.ShiftIds.Count == 0)
+        {
+            input.ShiftIds = await _context.Shifts
+                .Where(s => !s.IsDeleted)
+                .OrderBy(s => s.StartDate)
+                .Select(s => s.Id)
+                .ToListAsync();
+        }
+
+        if (input.EmployeeIds.Count == 0)
+        {
+            input.EmployeeIds = await _context.Employees
+                .Where(e => !e.IsDeleted)
+                .Select(e => e.Id)
+                .ToListAsync();
+        }
 
         var availableAlgos = _solverFactory.GetAvailableAlgorithms().ToList();
         var createdRuns = new List<AlgorithmRun>();

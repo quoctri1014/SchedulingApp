@@ -20,8 +20,6 @@ public class GaSolver : ISolver
 
     public ScheduleResultDto Run(SolverInput input)
     {
-        throw new NotImplementedException("Thuật toán GA (Di truyền) hiện tại chưa được triển khai. Vui lòng code thuật toán vào file GaSolver.cs!");
-
         _logger.LogInformation("Bắt đầu chạy thuật toán GA...");
         var sw = Stopwatch.StartNew();
 
