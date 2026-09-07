@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { Search, RefreshCw } from 'lucide-react';
 import { api } from '../services/api';
 import type { User, PagedResult } from '../types';
-import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import UserDetail from './UserDetail';
 

@@ -74,11 +74,12 @@ be/
 │   │   │   └── MappingProfile.cs                   ← AutoMapper Profile
 │   │   └── Solver/                                 ← MỖI THÀNH VIÊN CODE 1 FILE RIÊNG TẠI ĐÂY
 │   │       ├── SolverFactory.cs                    ← Resolve solver động theo tên thuật toán
-│   │       ├── FakeGreedySolver.cs
+│   │       ├── GreedySolver.cs
 │   │       ├── GaSolver.cs
 │   │       ├── SaSolver.cs
 │   │       ├── HybridSolver.cs
-│   │       └── FakeValidator.cs
+│   │       ├── ConstraintValidator.cs              ← Validator ràng buộc thật
+│   │       └── FakeValidator.cs                    ← Stub cũ, không còn đăng ký DI
 │   │
 │   ├── SchedulingApp.Infrastructure/
 │   │   ├── Persistence/

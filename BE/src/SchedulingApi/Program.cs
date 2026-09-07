@@ -56,8 +56,7 @@ builder.Services.AddScoped<ISolver, SaSolver>();          // SA
 builder.Services.AddScoped<ISolver, HybridSolver>();      // Hybrid
 builder.Services.AddScoped<ISolverFactory, SolverFactory>();
 
-// IConstraintValidator — Fake luôn trả về valid, nhóm thay bằng ConstraintValidator thật sau
-builder.Services.AddScoped<IConstraintValidator, FakeValidator>();
+builder.Services.AddScoped<IConstraintValidator, ConstraintValidator>();
 
 var app = builder.Build();
 

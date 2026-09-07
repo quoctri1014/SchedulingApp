@@ -15,12 +15,14 @@ public class ScheduleController : ControllerBase
 {
     private readonly ISolverFactory _solverFactory;
     private readonly AppDbContext _context;
+    private readonly IConstraintValidator _constraintValidator;
     private readonly ILogger<ScheduleController> _logger;
 
-    public ScheduleController(ISolverFactory solverFactory, AppDbContext context, ILogger<ScheduleController> logger)
+    public ScheduleController(ISolverFactory solverFactory, AppDbContext context, IConstraintValidator constraintValidator, ILogger<ScheduleController> logger)
     {
         _solverFactory = solverFactory;
         _context = context;
+        _constraintValidator = constraintValidator;
         _logger = logger;
     }
 
@@ -40,6 +42,9 @@ public class ScheduleController : ControllerBase
             .Where(s => input.ShiftIds.Contains(s.Id) && !s.IsDeleted)
             .ToListAsync();
         input.Employees = await _context.Employees
+            .Include(e => e.Assignments)
+            .Include(e => e.Leaves)
+            .Include(e => e.Preferences)
             .Where(e => input.EmployeeIds.Contains(e.Id) && !e.IsDeleted)
             .ToListAsync();
 
@@ -123,6 +128,9 @@ public class ScheduleController : ControllerBase
                         .Where(s => input.ShiftIds.Contains(s.Id) && !s.IsDeleted)
                         .ToListAsync();
                     input.Employees = await _context.Employees
+                        .Include(e => e.Assignments)
+                        .Include(e => e.Leaves)
+                        .Include(e => e.Preferences)
                         .Where(e => input.EmployeeIds.Contains(e.Id) && !e.IsDeleted)
                         .ToListAsync();
                 }
@@ -165,6 +173,19 @@ public class ScheduleController : ControllerBase
             Success = true,
             Data = createdRuns
         });
+    }
+
+    [HttpPost("validate-assignment")]
+    public async Task<ActionResult<ApiResponse<ValidationResult>>> ValidateAssignment([FromBody] AssignRequest request)
+    {
+        request.Employee = await _context.Employees
+            .Include(e => e.Assignments)
+            .Include(e => e.Leaves)
+            .Include(e => e.Preferences)
+            .FirstOrDefaultAsync(e => e.Id == request.EmployeeId);
+        request.Shift = await _context.Shifts.FirstOrDefaultAsync(s => s.Id == request.ShiftId);
+        var result = _constraintValidator.Validate(request);
+        return Ok(new ApiResponse<ValidationResult> { Success = true, Data = result });
     }
 
     [HttpGet("compare")]

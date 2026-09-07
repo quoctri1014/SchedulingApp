@@ -1,12 +1,24 @@
+using SchedulingApp.Domain.Entities;
+
 namespace SchedulingApp.Application.DTOs;
 
 public class AssignRequest
 {
-    public int EmployeeId { get; set; }
+    public string EmployeeId { get; set; } = string.Empty;
     public int ShiftId { get; set; }
-    public int CompanyId { get; set; }
-    public int DepartmentId { get; set; }
-    public int PositionId { get; set; }
+    public string CompanyId { get; set; } = string.Empty;
+    public string DepartmentId { get; set; } = string.Empty;
+    public string PositionId { get; set; } = string.Empty;
+
+    // Dữ liệu ngữ cảnh đã được load trước khi validate. Các ID phía trên được giữ lại
+    // để tương thích với client cũ; validator không tự truy cập cơ sở dữ liệu.
+    public Employee? Employee { get; set; }
+    public Shift? Shift { get; set; }
+    public List<Shift> ExistingAssignedShifts { get; set; } = new();
+    public double MinimumRestHours { get; set; } = 12;
+    public bool RequiresCertificate { get; set; }
+    public bool AllowCrossDepartment { get; set; }
+    public bool CompanyPositionIsActive { get; set; } = true;
 }
 
 public class ValidationResult
