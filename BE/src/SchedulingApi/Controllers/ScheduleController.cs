@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using SchedulingApp.Application.Common;
 using SchedulingApp.Application.DTOs;
 using SchedulingApp.Application.Interfaces;
 using SchedulingApp.Domain.Entities;
@@ -72,9 +73,9 @@ public class ScheduleController : ControllerBase
         // Record history
         var run = new AlgorithmRun
         {
-            AlgorithmName = algorithm,
+            Algorithm = algorithm,
             StartedAt = startedAt,
-            FinishedAt = DateTime.Now,
+            CompletedAt = DateTime.Now,
             ExecutionTimeMs = result.ExecutionTimeMs,
             TotalShifts = result.TotalShifts,
             FilledShifts = result.FilledShifts,
@@ -82,8 +83,7 @@ public class ScheduleController : ControllerBase
             HardViolationsCount = result.HardViolationsCount,
             SoftViolationsCount = result.SoftViolationsCount,
             TotalPenaltyScore = result.TotalPenaltyScore,
-            Status = "Completed",
-            ParametersJson = System.Text.Json.JsonSerializer.Serialize(input.Options)
+            PenaltyBreakdownJson = System.Text.Json.JsonSerializer.Serialize(result.PenaltyBreakdown)
         };
         _context.AlgorithmRuns.Add(run);
         await _context.SaveChangesAsync();
@@ -96,7 +96,7 @@ public class ScheduleController : ControllerBase
     }
 
     [HttpPost("run-all")]
-    public async Task<ActionResult<ApiResponse<List<AlgorithmRun>>>> RunAll([FromBody] RunAllRequestDto? inputDto)
+    public async Task<ActionResult<ApiResponse<List<AlgorithmRun>>>> RunAll([FromBody] RunAllInputDto? inputDto)
     {
         _logger.LogInformation("Running all algorithms for comparison");
 
@@ -151,9 +151,9 @@ public class ScheduleController : ControllerBase
 
                 var run = new AlgorithmRun
                 {
-                    AlgorithmName = algo,
+                    Algorithm = algo,
                     StartedAt = startedAt,
-                    FinishedAt = DateTime.Now,
+                    CompletedAt = DateTime.Now,
                     ExecutionTimeMs = result.ExecutionTimeMs,
                     TotalShifts = result.TotalShifts,
                     FilledShifts = result.FilledShifts,
@@ -161,8 +161,7 @@ public class ScheduleController : ControllerBase
                     HardViolationsCount = result.HardViolationsCount,
                     SoftViolationsCount = result.SoftViolationsCount,
                     TotalPenaltyScore = result.TotalPenaltyScore,
-                    Status = "Completed",
-                    ParametersJson = System.Text.Json.JsonSerializer.Serialize(input.Options)
+                    PenaltyBreakdownJson = System.Text.Json.JsonSerializer.Serialize(result.PenaltyBreakdown)
                 };
                 _context.AlgorithmRuns.Add(run);
                 createdRuns.Add(run);
@@ -218,7 +217,7 @@ public class ScheduleController : ControllerBase
             .ToList();
 
         var summary = runs
-            .GroupBy(r => r.AlgorithmName)
+            .GroupBy(r => r.Algorithm)
             .Select(g => new
             {
                 Algorithm = g.Key,
