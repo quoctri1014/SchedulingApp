@@ -33,6 +33,86 @@ public class GreedySolverTests
         var result = new GreedySolver(NullLogger<GreedySolver>.Instance).Run(TestFixtures.CreateInput());
         Assert.Equal("employee-1", result.Schedule["1"][0].EmployeeId);
     }
+
+    [Fact]
+    public void Run_RespectsApprovedLeaves_DoesNotAssignEmployeeOnLeave()
+    {
+        var input = TestFixtures.CreateInput();
+        input.Employees[0].Leaves.Add(new EmployeeLeave
+        {
+            IsApproved = true,
+            StartTime = new DateTime(2026, 9, 7, 6, 0, 0),
+            EndTime = new DateTime(2026, 9, 7, 18, 0, 0)
+        });
+
+        var result = new GreedySolver(NullLogger<GreedySolver>.Instance).Run(input);
+
+        // employee-1 is on leave during shift 1, so employee-2 should be assigned
+        Assert.Equal("employee-2", result.Schedule["1"][0].EmployeeId);
+    }
+
+    [Fact]
+    public void Run_RespectsMinimumRestHours_PreventsBackToBackShifts()
+    {
+        var shifts = new List<Shift>
+        {
+            new() { Id = 1, StartDate = new DateTime(2026, 9, 7, 8, 0, 0), EndDate = new DateTime(2026, 9, 7, 16, 0, 0), RequiredEmployeeCount = 1 },
+            new() { Id = 2, StartDate = new DateTime(2026, 9, 7, 18, 0, 0), EndDate = new DateTime(2026, 9, 7, 23, 0, 0), RequiredEmployeeCount = 1 } // Only 2h rest
+        };
+        var employees = new List<Employee>
+        {
+            new() { Id = "e1", FullName = "Nhân viên 1", MaxHoursPerWeek = 40 }
+        };
+        var input = new SolverInput
+        {
+            Shifts = shifts,
+            Employees = employees,
+            Options = new Dictionary<string, object> { ["minRestHours"] = 8.0 }
+        };
+
+        var result = new GreedySolver(NullLogger<GreedySolver>.Instance).Run(input);
+
+        Assert.Equal(1, result.FilledShifts);
+        Assert.Equal(1, result.UnfilledShifts);
+        Assert.Equal(0, result.HardViolationsCount);
+    }
+
+    [Fact]
+    public void Run_RespectsMaxHoursPerWeek_CapsAssignedHours()
+    {
+        var shifts = new List<Shift>
+        {
+            new() { Id = 1, StartDate = new DateTime(2026, 9, 7, 8, 0, 0), EndDate = new DateTime(2026, 9, 7, 16, 0, 0), RequiredEmployeeCount = 1 },
+            new() { Id = 2, StartDate = new DateTime(2026, 9, 8, 8, 0, 0), EndDate = new DateTime(2026, 9, 8, 16, 0, 0), RequiredEmployeeCount = 1 }
+        };
+        var employees = new List<Employee>
+        {
+            new() { Id = "e1", FullName = "Nhân viên 1", MaxHoursPerWeek = 8 } // Only 8h max
+        };
+        var input = new SolverInput
+        {
+            Shifts = shifts,
+            Employees = employees
+        };
+
+        var result = new GreedySolver(NullLogger<GreedySolver>.Instance).Run(input);
+
+        Assert.Equal(1, result.FilledShifts);
+        Assert.Equal(1, result.UnfilledShifts);
+    }
+
+    [Fact]
+    public void Run_SupportsAblationStrategies_CalculatesValidPenaltyBreakdown()
+    {
+        var input = TestFixtures.CreateInput();
+        input.Options["strategy"] = "adaptive";
+
+        var result = new GreedySolver(NullLogger<GreedySolver>.Instance).Run(input);
+
+        Assert.NotNull(result.PenaltyBreakdown);
+        Assert.True(result.ExecutionTimeMs >= 0);
+        Assert.Equal(0, result.HardViolationsCount);
+    }
 }
 
 /// <summary>
