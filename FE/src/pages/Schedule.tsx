@@ -214,7 +214,7 @@ export default function Schedule() {
                   <option value="greedy">Greedy (Tham lam)</option>
                   <option value="ga">Genetic Algorithm (Di truyền - GA)</option>
                   <option value="sa">Simulated Annealing (Luyện kim - SA)</option>
-                  <option value="hybrid">Thuật toán Lai (Hybrid GA+SA)</option>
+                  <option value="hybrid">Hybrid (Greedy + GA + Local Search)</option>
                 </select>
               </div>
 

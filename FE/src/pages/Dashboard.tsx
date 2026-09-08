@@ -17,7 +17,7 @@ const KNOWN_ALGORITHMS = [
   { key: 'greedy', name: 'Greedy (Tham lam)', color: '#64748b' },
   { key: 'ga', name: 'Genetic Algorithm (GA)', color: '#10b981' },
   { key: 'sa', name: 'Simulated Annealing (SA)', color: '#f59e0b' },
-  { key: 'hybrid', name: 'Hybrid (GA + SA)', color: '#8b5cf6' },
+  { key: 'hybrid', name: 'Hybrid (Greedy + GA + Local Search)', color: '#8b5cf6' },
 ];
 
 export default function Dashboard() {

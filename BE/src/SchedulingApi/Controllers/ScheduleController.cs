@@ -1,7 +1,5 @@
-using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using SchedulingApp.Application.Common;
 using SchedulingApp.Application.DTOs;
 using SchedulingApp.Application.Interfaces;
 using SchedulingApp.Domain.Entities;
@@ -10,41 +8,33 @@ using SchedulingApp.Infrastructure.Persistence;
 namespace SchedulingApp.Api.Controllers;
 
 [ApiController]
-[Route("api/v1/[controller]")]
+[Route("api/[controller]")]
 public class ScheduleController : ControllerBase
 {
     private readonly ISolverFactory _solverFactory;
-    private readonly IConstraintValidator _constraintValidator;
     private readonly AppDbContext _context;
+    private readonly IConstraintValidator _constraintValidator;
     private readonly ILogger<ScheduleController> _logger;
 
-    public ScheduleController(ISolverFactory solverFactory, IConstraintValidator constraintValidator, AppDbContext context, ILogger<ScheduleController> logger)
+    public ScheduleController(
+        ISolverFactory solverFactory,
+        AppDbContext context,
+        IConstraintValidator constraintValidator,
+        ILogger<ScheduleController> logger)
     {
         _solverFactory = solverFactory;
-        _constraintValidator = constraintValidator;
         _context = context;
+        _constraintValidator = constraintValidator;
         _logger = logger;
-    }
-
-    [HttpPost("validate")]
-    public ActionResult<ApiResponse<ValidationResult>> Validate([FromBody] AssignRequest request)
-    {
-        var result = _constraintValidator.Validate(request);
-        return Ok(new ApiResponse<ValidationResult>
-        {
-            Success = result.IsValid,
-            Data = result,
-            Errors = result.Errors
-        });
     }
 
     [HttpPost("run")]
     public async Task<ActionResult<ApiResponse<ScheduleResultDto>>> Run(
         [FromBody] SolverInput input,
-        [FromQuery] string algorithm = "greedy")
+        [FromQuery] string? algo)
     {
-        _logger.LogInformation("▶ Bắt đầu xếp lịch | Algorithm={Algorithm} | Shifts={ShiftCount} | Employees={EmpCount}",
-            algorithm, input.ShiftIds.Count, input.EmployeeIds.Count);
+        var algorithm = algo ?? "greedy";
+        _logger.LogInformation("Running schedule with algorithm: {Algorithm}", algorithm);
 
         var startedAt = DateTime.Now;
         var solver = _solverFactory.Resolve(algorithm);
@@ -71,47 +61,32 @@ public class ScheduleController : ControllerBase
             .Where(s => input.ShiftIds.Contains(s.Id) && !s.IsDeleted)
             .ToListAsync();
         input.Employees = await _context.Employees
+            .Include(e => e.Assignments)
+            .Include(e => e.Leaves)
+            .Include(e => e.Preferences)
             .Where(e => input.EmployeeIds.Contains(e.Id) && !e.IsDeleted)
             .ToListAsync();
 
         var result = solver.Run(input);
-        var completedAt = DateTime.Now;
 
-        var algoKey = algorithm.Trim().ToLower();
-
-        // Sử dụng trực tiếp PenaltyBreakdown từ thuật toán
-        if (result.PenaltyBreakdown == null)
-        {
-            result.PenaltyBreakdown = new Dictionary<string, double>();
-        }
-
-        // Tự động lưu vết lịch sử AlgorithmRun vào Database
+        // Record history
         var run = new AlgorithmRun
         {
-            Id = Guid.NewGuid(),
-            Algorithm = algoKey,
-            DatasetSize = input.ShiftIds.Count > 100 ? "large" : (input.ShiftIds.Count > 20 ? "medium" : "small"),
+            AlgorithmName = algorithm,
             StartedAt = startedAt,
-            CompletedAt = completedAt,
-            ExecutionTimeMs = result.ExecutionTimeMs > 0 ? result.ExecutionTimeMs : (long)(completedAt - startedAt).TotalMilliseconds,
+            FinishedAt = DateTime.Now,
+            ExecutionTimeMs = result.ExecutionTimeMs,
             TotalShifts = result.TotalShifts,
             FilledShifts = result.FilledShifts,
             UnfilledShifts = result.UnfilledShifts,
-            TotalPenaltyScore = result.TotalPenaltyScore,
             HardViolationsCount = result.HardViolationsCount,
             SoftViolationsCount = result.SoftViolationsCount,
-            PenaltyBreakdownJson = JsonSerializer.Serialize(result.PenaltyBreakdown),
-            RanBy = "Admin"
+            TotalPenaltyScore = result.TotalPenaltyScore,
+            Status = "Completed",
+            ParametersJson = System.Text.Json.JsonSerializer.Serialize(input.Options)
         };
-
         _context.AlgorithmRuns.Add(run);
         await _context.SaveChangesAsync();
-
-        result.AlgorithmRunId = run.Id;
-
-        _logger.LogInformation(
-            "✅ Hoàn thành xếp lịch & lưu AlgorithmRun {RunId} | Algorithm={Algorithm} | Penalty={Penalty} | Time={Ms}ms",
-            run.Id, algorithm, result.TotalPenaltyScore, result.ExecutionTimeMs);
 
         return Ok(new ApiResponse<ScheduleResultDto>
         {
@@ -121,10 +96,9 @@ public class ScheduleController : ControllerBase
     }
 
     [HttpPost("run-all")]
-    public async Task<ActionResult<ApiResponse<List<AlgorithmRun>>>> RunAll([FromBody] RunAllInputDto? inputDto)
+    public async Task<ActionResult<ApiResponse<List<AlgorithmRun>>>> RunAll([FromBody] RunAllRequestDto? inputDto)
     {
-        var runsPerAlgo = Math.Max(1, inputDto?.RunsPerAlgorithm ?? 1);
-        var datasetSize = string.IsNullOrWhiteSpace(inputDto?.DatasetSize) ? "medium" : inputDto.DatasetSize;
+        _logger.LogInformation("Running all algorithms for comparison");
 
         var input = inputDto?.SolverInput ?? new SolverInput
         {
@@ -152,55 +126,50 @@ public class ScheduleController : ControllerBase
         var availableAlgos = _solverFactory.GetAvailableAlgorithms().ToList();
         var createdRuns = new List<AlgorithmRun>();
 
-        _logger.LogInformation("▶ Bắt đầu Batch Run-All | Solvers={SolverCount} | RunsPerAlgo={RunsPerAlgo}",
-            availableAlgos.Count, runsPerAlgo);
-
-        foreach (var algoKey in availableAlgos)
+        foreach (var algo in availableAlgos)
         {
-            for (int i = 0; i < runsPerAlgo; i++)
+            try
             {
+                var solver = _solverFactory.Resolve(algo);
                 var startedAt = DateTime.Now;
-                var solver = _solverFactory.Resolve(algoKey);
 
-                // Fetch real shifts and employees from DB and pass to solver
-                if (input.Shifts == null || input.Shifts.Count == 0)
+                // Refresh DB data
+                if (input.Shifts.Count == 0 || input.Employees.Count == 0)
                 {
                     input.Shifts = await _context.Shifts
                         .Where(s => input.ShiftIds.Contains(s.Id) && !s.IsDeleted)
                         .ToListAsync();
                     input.Employees = await _context.Employees
+                        .Include(e => e.Assignments)
+                        .Include(e => e.Leaves)
+                        .Include(e => e.Preferences)
                         .Where(e => input.EmployeeIds.Contains(e.Id) && !e.IsDeleted)
                         .ToListAsync();
                 }
 
                 var result = solver.Run(input);
-                var completedAt = DateTime.Now;
-
-                if (result.PenaltyBreakdown == null)
-                {
-                    result.PenaltyBreakdown = new Dictionary<string, double>();
-                }
 
                 var run = new AlgorithmRun
                 {
-                    Id = Guid.NewGuid(),
-                    Algorithm = algoKey.ToLower(),
-                    DatasetSize = datasetSize,
+                    AlgorithmName = algo,
                     StartedAt = startedAt,
-                    CompletedAt = completedAt,
-                    ExecutionTimeMs = result.ExecutionTimeMs > 0 ? result.ExecutionTimeMs : (long)(completedAt - startedAt).TotalMilliseconds,
+                    FinishedAt = DateTime.Now,
+                    ExecutionTimeMs = result.ExecutionTimeMs,
                     TotalShifts = result.TotalShifts,
                     FilledShifts = result.FilledShifts,
                     UnfilledShifts = result.UnfilledShifts,
-                    TotalPenaltyScore = result.TotalPenaltyScore,
                     HardViolationsCount = result.HardViolationsCount,
                     SoftViolationsCount = result.SoftViolationsCount,
-                    PenaltyBreakdownJson = JsonSerializer.Serialize(result.PenaltyBreakdown),
-                    RanBy = "BatchRunAll"
+                    TotalPenaltyScore = result.TotalPenaltyScore,
+                    Status = "Completed",
+                    ParametersJson = System.Text.Json.JsonSerializer.Serialize(input.Options)
                 };
-
                 _context.AlgorithmRuns.Add(run);
                 createdRuns.Add(run);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error running algorithm {Algorithm}", algo);
             }
         }
 
@@ -213,24 +182,61 @@ public class ScheduleController : ControllerBase
         });
     }
 
-    [HttpGet("compare")]
-    public ActionResult<ApiResponse<object>> CompareAlgorithms()
+    [HttpPost("validate")]
+    [HttpPost("validate-assignment")]
+    public async Task<ActionResult<ApiResponse<ValidationResult>>> ValidateAssignment([FromBody] AssignRequest request)
     {
-        return StatusCode(501, new ApiResponse<object>
+        if (request.Employee == null && !string.IsNullOrEmpty(request.EmployeeId))
         {
-            Success = false,
-            Data = null,
-            Errors = new List<string> { "Chức năng so sánh thuật toán không được hỗ trợ qua API trực tiếp. Số liệu so sánh được tổng hợp từ dữ liệu thực tế tại Dashboard." }
+            request.Employee = await _context.Employees
+                .Include(e => e.Assignments)
+                .Include(e => e.Leaves)
+                .Include(e => e.Preferences)
+                .FirstOrDefaultAsync(e => e.Id == request.EmployeeId);
+        }
+
+        if (request.Shift == null && request.ShiftId > 0)
+        {
+            request.Shift = await _context.Shifts.FirstOrDefaultAsync(s => s.Id == request.ShiftId);
+        }
+
+        var result = _constraintValidator.Validate(request);
+        return Ok(new ApiResponse<ValidationResult>
+        {
+            Success = result.IsValid,
+            Data = result,
+            Errors = result.Errors
         });
     }
 
-    [HttpGet("latest")]
-    public async Task<ActionResult<ApiResponse<AlgorithmRun>>> GetLatest()
+    [HttpGet("compare")]
+    public ActionResult<ApiResponse<object>> CompareAlgorithms()
     {
-        var latest = await _context.AlgorithmRuns
+        var runs = _context.AlgorithmRuns
             .OrderByDescending(r => r.StartedAt)
-            .FirstOrDefaultAsync();
+            .Take(20)
+            .ToList();
 
-        return Ok(new ApiResponse<AlgorithmRun> { Success = true, Data = latest });
+        var summary = runs
+            .GroupBy(r => r.AlgorithmName)
+            .Select(g => new
+            {
+                Algorithm = g.Key,
+                AvgExecutionTimeMs = g.Average(r => r.ExecutionTimeMs),
+                AvgPenaltyScore = g.Average(r => r.TotalPenaltyScore),
+                AvgFilledShifts = g.Average(r => r.FilledShifts),
+                RunCount = g.Count(),
+                BestScore = g.Min(r => r.TotalPenaltyScore)
+            });
+
+        return Ok(new ApiResponse<object>
+        {
+            Success = true,
+            Data = new
+            {
+                Summary = summary,
+                RecentRuns = runs
+            }
+        });
     }
 }

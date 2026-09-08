@@ -20,7 +20,7 @@ SchedulingApp/
 │   │   │   ├── DTOs/ (CompanyDto, DepartmentDto, EmployeeDto, ShiftDto, ScheduleResultDto, SolverInputDto...)
 │   │   │   ├── Interfaces/ (ISolver, ISolverFactory, IConstraintValidator)
 │   │   │   ├── Mappings/ (MappingProfile.cs)
-│   │   │   └── Solver/ (SolverFactory.cs, FakeGreedySolver, GaSolver, SaSolver, HybridSolver)
+│   │   │   └── Solver/ (SolverFactory.cs, GreedySolver, GaSolver, SaSolver, HybridSolver, ConstraintValidator)
 │   │   ├── SchedulingApp.Infrastructure/
 │   │   │   ├── Persistence/ (AppDbContext.cs, FaceAttendanceDbContext.cs, Migrations/)
 │   │   │   └── SeedData/ (SeedData.cs)

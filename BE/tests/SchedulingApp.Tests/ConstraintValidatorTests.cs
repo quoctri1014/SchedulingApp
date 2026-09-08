@@ -1,19 +1,18 @@
-namespace SchedulingApp.Tests;
-
 using SchedulingApp.Application.DTOs;
 using SchedulingApp.Application.Solver;
+using SchedulingApp.Domain.Entities;
 
-/// <summary>
-/// Tests cho IConstraintValidator.
-/// TODO: Mỗi test method dưới đây cần được implement khi có ConstraintValidator thật.
-/// </summary>
+namespace SchedulingApp.Tests;
+
 public class ConstraintValidatorTests
 {
+    private readonly ConstraintValidator _validator = new();
+
     [Fact]
     public void Validate_OverlappingShifts_ReturnsInvalid()
     {
         var request = ValidRequest();
-        request.ExistingShifts.Add(new ScheduledShiftDto { EmployeeId = "employee-1", Start = request.ShiftStart.AddHours(-1), End = request.ShiftStart.AddHours(2) });
+        request.ExistingAssignedShifts.Add(ShiftAt(2, 9, 0, 17, 0));
         AssertInvalid(request, "trùng giờ");
     }
 
@@ -21,18 +20,18 @@ public class ConstraintValidatorTests
     public void Validate_OvernightShift_CalculatesRestCorrectly()
     {
         var request = ValidRequest();
-        request.ShiftStart = new DateTime(2026, 9, 7, 14, 0, 0);
-        request.ShiftEnd = new DateTime(2026, 9, 7, 22, 0, 0);
-        request.ExistingShifts.Add(new ScheduledShiftDto { EmployeeId = "employee-1", Start = new DateTime(2026, 9, 6, 22, 0, 0), End = new DateTime(2026, 9, 6, 6, 0, 0) });
-        var result = new ConstraintValidator().Validate(request);
-        Assert.DoesNotContain(result.Errors, error => error.Contains("Thời gian nghỉ"));
+        request.Shift = ShiftAt(1, 22, 0, 6, 0);
+        request.ExistingAssignedShifts.Add(new Shift { Id = 2, StartDate = new DateTime(2026, 9, 2, 7, 0, 0), EndDate = new DateTime(2026, 9, 2, 15, 0, 0) });
+        request.MinimumRestHours = 8;
+        AssertInvalid(request, "Thời gian nghỉ");
     }
 
     [Fact]
     public void Validate_RestTimeBelowMinimum_ReturnsInvalid()
     {
         var request = ValidRequest();
-        request.ExistingShifts.Add(new ScheduledShiftDto { EmployeeId = "employee-1", Start = request.ShiftStart.AddHours(-4), End = request.ShiftStart.AddHours(-2) });
+        request.ExistingAssignedShifts.Add(new Shift { Id = 2, StartDate = new DateTime(2026, 8, 31, 18, 0, 0), EndDate = new DateTime(2026, 9, 1, 2, 0, 0) });
+        request.MinimumRestHours = 8;
         AssertInvalid(request, "Thời gian nghỉ");
     }
 
@@ -40,8 +39,8 @@ public class ConstraintValidatorTests
     public void Validate_ExpiredCertification_ReturnsInvalid()
     {
         var request = ValidRequest();
-        request.PositionRequiresCertificate = true;
-        request.CertificateExpiryDate = request.ShiftStart.AddMinutes(-1);
+        request.RequiresCertificate = true;
+        request.Employee!.Assignments.First().CertificateExpiryDate = new DateTime(2026, 8, 31);
         AssertInvalid(request, "Chứng chỉ");
     }
 
@@ -49,7 +48,7 @@ public class ConstraintValidatorTests
     public void Validate_EmployeeOnLeave_ReturnsInvalid()
     {
         var request = ValidRequest();
-        request.LeavePeriods.Add(new LeavePeriodDto { Start = request.ShiftStart.AddHours(-1), End = request.ShiftEnd.AddHours(1), IsApproved = true });
+        request.Employee!.Leaves.Add(new EmployeeLeave { IsApproved = true, StartTime = new DateTime(2026, 9, 1), EndTime = new DateTime(2026, 9, 2) });
         AssertInvalid(request, "nghỉ phép");
     }
 
@@ -57,58 +56,65 @@ public class ConstraintValidatorTests
     public void Validate_ExceedsMaxWeeklyHours_ReturnsInvalid()
     {
         var request = ValidRequest();
-        request.HoursAlreadyScheduledThisWeek = 40;
-        AssertInvalid(request, "giới hạn");
+        request.Employee!.MaxHoursPerWeek = 8;
+        request.ExistingAssignedShifts.Add(new Shift { Id = 2, StartDate = new DateTime(2026, 9, 3, 8, 0, 0), EndDate = new DateTime(2026, 9, 3, 16, 0, 0) });
+        request.MinimumRestHours = 0;
+        AssertInvalid(request, "vượt giới hạn");
     }
 
     [Fact]
     public void Validate_CrossDepartmentWithSkill_ReturnsValid()
     {
         var request = ValidRequest();
-        request.DepartmentId = "other-department";
-        request.Assignments[0].DepartmentId = "home-department";
-        request.Assignments[0].AllowCrossDepartment = true;
-        Assert.True(new ConstraintValidator().Validate(request).IsValid);
+        request.Shift!.DepartmentId = "d2";
+        request.AllowCrossDepartment = true;
+        Assert.True(_validator.Validate(request).IsValid);
     }
 
     [Fact]
     public void Validate_CrossDepartmentWithoutPermission_ReturnsInvalid()
     {
         var request = ValidRequest();
-        request.DepartmentId = "other-department";
-        AssertInvalid(request, "assignment");
+        request.Shift!.DepartmentId = "d2";
+        AssertInvalid(request, "không có phân công phù hợp");
     }
 
     [Fact]
     public void Validate_CompanyPositionIsActive_ReturnsValid()
     {
-        Assert.True(new ConstraintValidator().Validate(ValidRequest()).IsValid);
+        Assert.True(_validator.Validate(ValidRequest()).IsValid);
     }
 
-    private static AssignRequest ValidRequest() => new()
+    [Fact]
+    public void Validate_InactiveCompanyPosition_ReturnsInvalid()
     {
-        EmployeeId = "employee-1",
-        ShiftId = "shift-1",
-        CompanyId = "company-1",
-        DepartmentId = "department-1",
-        PositionId = "position-1",
-        ShiftStart = new DateTime(2026, 9, 7, 8, 0, 0),
-        ShiftEnd = new DateTime(2026, 9, 7, 16, 0, 0),
-        MaxHoursPerWeek = 40,
-        Assignments = new List<EmployeeAssignmentContextDto>
-        {
-            new() { CompanyId = "company-1", DepartmentId = "department-1", PositionId = "position-1", CertificateExpiryDate = new DateTime(2027, 1, 1) }
-        },
-        CompanyPositions = new List<CompanyPositionContextDto>
-        {
-            new() { CompanyId = "company-1", PositionId = "position-1", IsActive = true }
-        }
-    };
+        var request = ValidRequest();
+        request.CompanyPositionIsActive = false;
+        AssertInvalid(request, "không hoạt động");
+    }
 
-    private static void AssertInvalid(AssignRequest request, string expectedMessagePart)
+    private void AssertInvalid(AssignRequest request, string expectedMessage)
     {
-        var result = new ConstraintValidator().Validate(request);
+        var result = _validator.Validate(request);
         Assert.False(result.IsValid);
-        Assert.Contains(result.Errors, error => error.Contains(expectedMessagePart, StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(result.Errors, error => error.Contains(expectedMessage, StringComparison.OrdinalIgnoreCase));
     }
+
+    private static AssignRequest ValidRequest()
+    {
+        var employee = new Employee { Id = "e1", FullName = "Vũ Trường Hùng", MaxHoursPerWeek = 40 };
+        employee.Assignments.Add(new EmployeeAssignment
+        {
+            EmployeeId = employee.Id, CompanyId = "c1", DepartmentId = "d1", PositionId = "p1",
+            CertificateExpiryDate = new DateTime(2027, 1, 1), EfficiencyMultiplier = 1
+        });
+        return new AssignRequest { Employee = employee, Shift = ShiftAt(1, 8, 0, 16, 0), MinimumRestHours = 12 };
+    }
+
+    private static Shift ShiftAt(int id, int startHour, int startMinute, int endHour, int endMinute) => new()
+    {
+        Id = id, CompanyId = "c1", DepartmentId = "d1", PositionId = "p1",
+        StartDate = new DateTime(2026, 9, 1, startHour, startMinute, 0),
+        EndDate = new DateTime(2026, 9, 1, endHour, endMinute, 0), RequiredEmployeeCount = 1
+    };
 }
