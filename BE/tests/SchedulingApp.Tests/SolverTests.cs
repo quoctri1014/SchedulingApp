@@ -113,6 +113,113 @@ public class GreedySolverTests
         Assert.True(result.ExecutionTimeMs >= 0);
         Assert.Equal(0, result.HardViolationsCount);
     }
+
+    [Fact]
+    public void Run_Benchmark_Small_Medium_Large()
+    {
+        var configs = new[]
+        {
+            (Name: "Small", EmpCount: 10, ShiftCount: 18, Req: 1),
+            (Name: "Medium", EmpCount: 30, ShiftCount: 42, Req: 2),
+            (Name: "Large", EmpCount: 100, ShiftCount: 84, Req: 3)
+        };
+
+        var solver = new GreedySolver(NullLogger<GreedySolver>.Instance);
+        var reportLines = new List<string> { "Dataset,AvgExecutionTimeMs,AvgPenaltyScore,StdDev,AvgFilledPercentage" };
+
+        foreach (var (name, empCount, shiftCount, req) in configs)
+        {
+            var times = new List<long>();
+            var penalties = new List<double>();
+            var filledPercents = new List<double>();
+
+            for (var r = 1; r <= 30; r++)
+            {
+                var employees = new List<Employee>();
+                for (var i = 0; i < empCount; i++)
+                {
+                    var emp = new Employee
+                    {
+                        Id = $"e{i + 1}",
+                        FullName = $"Nhân viên {i + 1}",
+                        MaxHoursPerWeek = 40
+                    };
+                    emp.Assignments.Add(new EmployeeAssignment
+                    {
+                        EmployeeId = emp.Id,
+                        CompanyId = "c1",
+                        DepartmentId = $"d{i % 3 + 1}",
+                        PositionId = $"p{i % 2 + 1}",
+                        CertificateExpiryDate = new DateTime(2027, 12, 31),
+                        EfficiencyMultiplier = 1
+                    });
+                    if (i % 7 == 0)
+                        emp.Preferences.Add(new EmployeePreference { EmployeeId = emp.Id, PreferredDayOff = DayOfWeek.Sunday });
+                    employees.Add(emp);
+                }
+
+                var shifts = new List<Shift>();
+                var startDate = new DateTime(2026, 9, 7);
+                for (var s = 0; s < shiftCount; s++)
+                {
+                    var day = startDate.AddDays(s / 3);
+                    var slot = s % 3;
+                    var startHour = slot switch { 0 => 6, 1 => 14, _ => 22 };
+                    var start = day.AddHours(startHour);
+                    var end = start.AddHours(8);
+                    shifts.Add(new Shift
+                    {
+                        Id = s + 1,
+                        CompanyId = "c1",
+                        DepartmentId = $"d{s % 3 + 1}",
+                        PositionId = $"p{s % 2 + 1}",
+                        StartDate = start,
+                        EndDate = end,
+                        RequiredEmployeeCount = req
+                    });
+                }
+
+                if (employees.Count > 5)
+                {
+                    employees[0].Leaves.Add(new EmployeeLeave
+                    {
+                        EmployeeId = employees[0].Id,
+                        IsApproved = true,
+                        StartTime = startDate,
+                        EndTime = startDate.AddDays(1)
+                    });
+                }
+
+                var input = new SolverInput
+                {
+                    Employees = employees,
+                    Shifts = shifts,
+                    Options = new Dictionary<string, object>
+                    {
+                        ["strategy"] = "adaptive",
+                        ["minRestHours"] = 8.0
+                    }
+                };
+
+                var res = solver.Run(input);
+                times.Add(res.ExecutionTimeMs);
+                penalties.Add(res.TotalPenaltyScore);
+                var filledPercent = shifts.Count > 0 ? ((double)res.FilledShifts / shifts.Count) * 100.0 : 100.0;
+                filledPercents.Add(filledPercent);
+            }
+
+            var avgTime = times.Average();
+            var avgPenalty = penalties.Average();
+            var variance = penalties.Average(p => Math.Pow(p - avgPenalty, 2));
+            var stdDev = Math.Sqrt(variance);
+            var avgFilled = filledPercents.Average();
+
+            reportLines.Add($"{name},{avgTime:F2},{avgPenalty:F2},{stdDev:F2},{avgFilled:F1}");
+        }
+
+        Directory.CreateDirectory(@"d:\CD-CGTTU\SchedulingApp\Experiments\results");
+        File.WriteAllLines(@"d:\CD-CGTTU\SchedulingApp\Experiments\results\greedy_benchmark.csv", reportLines);
+    }
 }
 
 /// <summary>

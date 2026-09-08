@@ -1,0 +1,4 @@
+Dataset,AvgExecutionTimeMs,AvgPenaltyScore,StdDev,AvgFilledPercentage
+Small,1.00,71.68,0.00,100.0
+Medium,1.07,20.48,0.00,100.0
+Large,2.57,31.95,0.00,100.0
