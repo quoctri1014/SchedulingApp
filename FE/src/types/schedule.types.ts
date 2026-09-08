@@ -11,6 +11,12 @@ export interface AssignedEmployee {
   employeeName: string;
 }
 
+export interface ConvergencePoint {
+  iteration: number;
+  bestPenalty: number;
+  avgPenalty?: number;
+}
+
 export interface ScheduleResult {
   schedule: Record<string, AssignedEmployee[]>;
   totalShifts: number;
@@ -22,4 +28,5 @@ export interface ScheduleResult {
   softViolationsCount: number;
   penaltyBreakdown: Record<string, number>;
   algorithmRunId?: string;
+  convergenceHistory?: ConvergencePoint[];
 }

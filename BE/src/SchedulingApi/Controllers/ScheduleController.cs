@@ -9,6 +9,7 @@ using SchedulingApp.Infrastructure.Persistence;
 namespace SchedulingApp.Api.Controllers;
 
 [ApiController]
+[Route("api/v1/[controller]")]
 [Route("api/[controller]")]
 public class ScheduleController : ControllerBase
 {
@@ -32,13 +33,14 @@ public class ScheduleController : ControllerBase
     [HttpPost("run")]
     public async Task<ActionResult<ApiResponse<ScheduleResultDto>>> Run(
         [FromBody] SolverInput input,
-        [FromQuery] string? algo)
+        [FromQuery] string? algo,
+        [FromQuery] string? algorithm)
     {
-        var algorithm = algo ?? "greedy";
-        _logger.LogInformation("Running schedule with algorithm: {Algorithm}", algorithm);
+        var resolvedAlgorithm = algorithm ?? algo ?? "greedy";
+        _logger.LogInformation("Running schedule with algorithm: {Algorithm}", resolvedAlgorithm);
 
         var startedAt = DateTime.Now;
-        var solver = _solverFactory.Resolve(algorithm);
+        var solver = _solverFactory.Resolve(resolvedAlgorithm);
 
         if (input.ShiftIds.Count == 0)
         {

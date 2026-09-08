@@ -25,7 +25,8 @@ foreach (var config in configurations)
                 config.Name, localIterations > 0 ? "Hybrid có Local Search" : "Hybrid không Local Search",
                 run, config.EmployeeCount, config.ShiftCount, localIterations,
                 result.ExecutionTimeMs, result.TotalPenaltyScore, result.HardViolationsCount,
-                result.SoftViolationsCount, result.FilledShifts, result.UnfilledShifts));
+                result.SoftViolationsCount, result.FilledShifts, result.UnfilledShifts,
+                result.CompletedGenerations, result.EarlyStoppingReason));
         }
     }
 }
@@ -93,4 +94,5 @@ static SolverInput BuildInput(DatasetConfig config, int seed, int localIteration
 record DatasetConfig(string Name, int EmployeeCount, int ShiftCount, int RequiredPerShift);
 record ExperimentRun(string Dataset, string Variant, int Run, int EmployeeCount, int ShiftCount,
     int LocalSearchIterations, long ExecutionTimeMs, double TotalPenaltyScore, int HardViolationsCount,
-    int SoftViolationsCount, int FilledShifts, int UnfilledShifts);
+    int SoftViolationsCount, int FilledShifts, int UnfilledShifts,
+    int? CompletedGenerations = null, string? EarlyStoppingReason = null);

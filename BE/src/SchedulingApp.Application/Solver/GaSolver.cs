@@ -42,7 +42,8 @@ public class GaSolver : ISolver
         var population = InitializePopulation(options, targetShifts, employees, random);
         EvaluatePopulation(population, input, options);
         SortPopulationByFitness(population);
-        population = EvolvePopulation(population, input, targetShifts, employees, options, random);
+        var (evolvedPopulation, convergenceHistory) = EvolvePopulation(population, input, targetShifts, employees, options, random);
+        population = evolvedPopulation;
         if (population.Count == 0)
         {
             throw new InvalidOperationException("Cannot select best chromosome because the final GA population is empty.");
@@ -55,7 +56,7 @@ public class GaSolver : ISolver
         }
 
         stopwatch.Stop();
-        var result = MapToScheduleResult(bestChromosome, targetShifts, employees, stopwatch.ElapsedMilliseconds);
+        var result = MapToScheduleResult(bestChromosome, targetShifts, employees, stopwatch.ElapsedMilliseconds, convergenceHistory);
 
         _logger.LogInformation(
             "Algorithm {Algorithm} completed. PopulationSize={PopulationSize}, Generations={Generations}, " +
@@ -357,7 +358,7 @@ public class GaSolver : ISolver
         return nextGeneration;
     }
 
-    private static List<Chromosome> EvolvePopulation(
+    private static (List<Chromosome> Population, List<ConvergencePointDto> History) EvolvePopulation(
         IReadOnlyList<Chromosome> initialPopulation,
         SolverInput input,
         IReadOnlyList<Shift> normalizedShifts,
@@ -365,29 +366,51 @@ public class GaSolver : ISolver
         GaOptions options,
         Random random)
     {
+        var history = new List<ConvergencePointDto>();
+        if (initialPopulation.Count > 0 && initialPopulation[0].Fitness != null)
+        {
+            history.Add(new ConvergencePointDto
+            {
+                Iteration = 0,
+                BestPenalty = Math.Round(initialPopulation[0].Fitness!.TotalPenalty, 2),
+                AvgPenalty = Math.Round(initialPopulation.Average(c => c.Fitness?.TotalPenalty ?? 0), 2)
+            });
+        }
+
         if (options.Generations == 0)
         {
-            return initialPopulation.ToList();
+            return (initialPopulation.ToList(), history);
         }
 
         var shiftById = normalizedShifts.ToDictionary(shift => shift.Id);
         var population = initialPopulation;
-        for (var generation = 0; generation < options.Generations; generation++)
+        for (var generation = 1; generation <= options.Generations; generation++)
         {
             var nextGeneration = CreateNextGeneration(population, normalizedEmployees, shiftById, options, random);
             EvaluatePopulation(nextGeneration, input, options);
             SortPopulationByFitness(nextGeneration);
             population = nextGeneration;
+
+            if (generation % 5 == 0 || generation == 1 || generation == options.Generations)
+            {
+                history.Add(new ConvergencePointDto
+                {
+                    Iteration = generation,
+                    BestPenalty = Math.Round(population[0].Fitness!.TotalPenalty, 2),
+                    AvgPenalty = Math.Round(population.Average(c => c.Fitness?.TotalPenalty ?? 0), 2)
+                });
+            }
         }
 
-        return population.ToList();
+        return (population.ToList(), history);
     }
 
     private static ScheduleResultDto MapToScheduleResult(
         Chromosome bestChromosome,
         IReadOnlyList<Shift> normalizedShifts,
         IReadOnlyList<Employee> normalizedEmployees,
-        long executionTimeMs)
+        long executionTimeMs,
+        List<ConvergencePointDto> convergenceHistory)
     {
         if (bestChromosome.Fitness == null)
         {
@@ -459,7 +482,8 @@ public class GaSolver : ISolver
             HardViolationsCount = bestChromosome.Fitness.HardViolationsCount,
             SoftViolationsCount = bestChromosome.Fitness.SoftViolationsCount,
             PenaltyBreakdown = new Dictionary<string, double>(bestChromosome.Fitness.PenaltyBreakdown, StringComparer.Ordinal),
-            AlgorithmRunId = null
+            AlgorithmRunId = null,
+            ConvergenceHistory = convergenceHistory
         };
     }
 

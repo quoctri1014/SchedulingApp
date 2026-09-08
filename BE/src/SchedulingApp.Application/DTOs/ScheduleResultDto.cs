@@ -29,6 +29,13 @@ public class AssignedEmployeeDto
     public string EmployeeName { get; set; } = string.Empty;
 }
 
+public class ConvergencePointDto
+{
+    public int Iteration { get; set; }
+    public double BestPenalty { get; set; }
+    public double AvgPenalty { get; set; }
+}
+
 public class ScheduleResultDto
 {
     public Dictionary<string, List<AssignedEmployeeDto>> Schedule { get; set; } = new();
@@ -41,4 +48,7 @@ public class ScheduleResultDto
     public int SoftViolationsCount { get; set; }
     public Dictionary<string, double>? PenaltyBreakdown { get; set; } = new();
     public Guid? AlgorithmRunId { get; set; }
+    public List<ConvergencePointDto> ConvergenceHistory { get; set; } = new();
+    public string? EarlyStoppingReason { get; set; }
+    public int? CompletedGenerations { get; set; }
 }

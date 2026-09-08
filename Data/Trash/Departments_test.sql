@@ -1,1 +1,0 @@
-﻿INSERT INTO FaceAttendanceSystem.dbo.Departments (Id,CompanyId,ParentDepartmentId,Code,Name,[Level],SortOrder,IsActive,CreatedAt,UpdatedAt,CreatedBy,UpdatedBy) VALUES      (N'07400101-0001-0000-0000-000000000001',N'944A9B32-B487-4B41-B370-5C53F3C39CBC',NULL,N'ADM-HAIL',N'Phòng Tổng hợp Hải Long',1,0,1,GETDATE(),NULL,NULL,NULL)

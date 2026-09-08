@@ -5,6 +5,7 @@ import type { ScheduleResult } from '../types';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
+import { ConvergenceChart } from '../components/ConvergenceChart';
 import { Play, CheckCircle2, AlertTriangle, BarChart2, ShieldAlert, Zap, Dna, Flame, Sparkles } from 'lucide-react';
 
 const ALGO_METADATA: Record<string, { label: string; icon: any; color: string; bg: string; border: string; text: string }> = {
@@ -342,6 +343,17 @@ export default function Schedule() {
                           {renderSummaryText(result)}
                         </div>
                       </div>
+                    </div>
+                  )}
+
+                  {/* Biểu đồ đường cong hội tụ (Convergence Curve) */}
+                  {result.convergenceHistory && result.convergenceHistory.length > 0 && (
+                    <div className="pt-2">
+                      <ConvergenceChart
+                        data={result.convergenceHistory}
+                        algorithmName={selectedAlgo}
+                        title={`Đường cong Hội tụ (${activeMeta.label})`}
+                      />
                     </div>
                   )}
 

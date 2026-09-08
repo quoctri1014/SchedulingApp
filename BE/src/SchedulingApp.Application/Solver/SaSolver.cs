@@ -46,6 +46,10 @@ public class SaSolver : ISolver
         double bestFitness = currentFitness;
 
         double temp = initTemp;
+        var history = new List<ConvergencePointDto>
+        {
+            new() { Iteration = 0, BestPenalty = Math.Round(bestFitness, 2), AvgPenalty = Math.Round(currentFitness, 2) }
+        };
 
         for (int iter = 0; iter < maxIter; iter++)
         {
@@ -64,6 +68,16 @@ public class SaSolver : ISolver
                 }
             }
 
+            if ((iter + 1) % 50 == 0 || iter == maxIter - 1)
+            {
+                history.Add(new ConvergencePointDto
+                {
+                    Iteration = iter + 1,
+                    BestPenalty = Math.Round(bestFitness, 2),
+                    AvgPenalty = Math.Round(currentFitness, 2)
+                });
+            }
+
             temp *= coolingRate;
         }
 
@@ -78,13 +92,18 @@ public class SaSolver : ISolver
         {
             var shift = targetShifts[j];
             var assignedIds = bestSolution[j];
-            
             var assignedDtos = new List<AssignedEmployeeDto>();
-            foreach(var eid in assignedIds) {
-                var emp = employees.FirstOrDefault(e => e.Id == eid);
+
+            foreach (var empId in assignedIds)
+            {
+                var emp = employees.FirstOrDefault(e => e.Id == empId);
                 if (emp != null)
                 {
-                    assignedDtos.Add(new AssignedEmployeeDto { EmployeeId = emp.Id, EmployeeName = emp.FullName });
+                    assignedDtos.Add(new AssignedEmployeeDto
+                    {
+                        EmployeeId = emp.Id,
+                        EmployeeName = emp.FullName
+                    });
                 }
             }
 
@@ -95,8 +114,6 @@ public class SaSolver : ISolver
                 unfilledShifts++;
         }
 
-        sw.Stop();
-
         result.Schedule = schedule;
         result.TotalShifts = targetShifts.Count;
         result.FilledShifts = filledShifts;
@@ -106,6 +123,7 @@ public class SaSolver : ISolver
         result.PenaltyBreakdown = penaltyBreakdown;
         result.TotalPenaltyScore = penaltyBreakdown.Values.Sum();
         result.SoftViolationsCount = penaltyBreakdown.Count;
+        result.ConvergenceHistory = history;
 
         return result;
     }
